@@ -1,5 +1,7 @@
 import { FatalError, PartialStop } from './errors.js';
-import { GitHubError } from './github.js';
+import { GitHubError, isWorkflowPermissionError, refPath } from './github.js';
+import { backupCommitMessage } from './message.js';
+import { MAX_BACKUP_SUFFIX, pickFreeBackupName, renderBackupName } from './refname.js';
 
 export const MESSAGES = {
   auth: 'Token invalid or expired — rotate the secret passed as `token`.',
@@ -74,4 +76,124 @@ export async function compareBranches(client, fork, pairs) {
     }
   }
   return comparisons;
+}
+
+const WRITES_PER_BACKUP = 3; // backup commit, backup ref, forced update
+
+function describeWriteError(err) {
+  if (isWorkflowPermissionError(err)) return 'PAT lacks Workflows: Read and write';
+  if (err.status === 401) return MESSAGES.auth;
+  if (err.status === 403) return 'Token cannot write to the fork — it needs Contents: Read and write';
+  return `GitHub ${err.status}: ${err.message}`;
+}
+
+async function attempt(op, call, explain = () => null) {
+  try {
+    await call();
+    return { ...op, status: 'done' };
+  } catch (err) {
+    if (!(err instanceof GitHubError)) throw err;
+    return { ...op, status: 'error', error: explain(err) ?? describeWriteError(err) };
+  }
+}
+
+async function createBackupRef(client, fork, base, sha, taken) {
+  for (;;) {
+    const name = pickFreeBackupName(base, taken);
+    if (!name) return null;
+    try {
+      await client.request('POST', `/repos/${fork}/git/refs`, { ref: `refs/heads/${name}`, sha });
+      taken.add(name);
+      return name;
+    } catch (err) {
+      if (isStatus(err, 422) && /already exists/i.test(err.message)) {
+        taken.add(name);
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
+// Hard rule: the forced update is only sent after the backup ref exists.
+async function backupThenForce(client, ctx, op, options, taken) {
+  const { fork, upstream } = ctx;
+  const base = renderBackupName(options.pattern, { branch: op.name, date: options.date });
+  if (options.dryRun) return { ...op, status: 'planned', backupName: pickFreeBackupName(base, taken) ?? base };
+  if (client.writesRemaining() < WRITES_PER_BACKUP) throw new PartialStop('write-budget');
+
+  let backupName;
+  try {
+    const old = await client.request('GET', `/repos/${fork}/git/commits/${op.from}`);
+    const message = backupCommitMessage({
+      branch: op.name, upstream, fork, from: op.from, to: op.to,
+      mergeBase: op.comparison.mergeBase, behindBy: op.comparison.behindBy,
+      detectedAt: options.detectedAt, timeZone: options.timeZone, runUrl: options.runUrl,
+    });
+    const commit = await client.request('POST', `/repos/${fork}/git/commits`, { message, tree: old.tree.sha, parents: [op.from] });
+    backupName = await createBackupRef(client, fork, base, commit.sha, taken);
+  } catch (err) {
+    if (!(err instanceof GitHubError)) throw err;
+    return { ...op, status: 'error', error: `backup failed, force skipped: ${describeWriteError(err)}` };
+  }
+  if (!backupName) {
+    return { ...op, status: 'error', error: `no free backup branch name (${base} … -${MAX_BACKUP_SUFFIX}); force skipped` };
+  }
+
+  try {
+    await client.request('PATCH', `/repos/${fork}/git/refs/${refPath(`heads/${op.name}`)}`, { sha: op.to, force: true });
+  } catch (err) {
+    if (!(err instanceof GitHubError)) throw err;
+    return { ...op, status: 'error', backupName, error: `backup ${backupName} created, but force-sync failed: ${describeWriteError(err)}` };
+  }
+  return { ...op, status: 'done', backupName };
+}
+
+async function applyOne(client, ctx, op, options, taken) {
+  const { fork } = ctx;
+  switch (op.outcome) {
+    case 'up-to-date':
+    case 'retained':
+    case 'tag-moved':
+      return { ...op, status: 'done' };
+    case 'error':
+      return { ...op, status: 'error' };
+    case 'create': {
+      if (options.dryRun) return { ...op, status: 'planned' };
+      const ref = `refs/${op.kind === 'tag' ? 'tags' : 'heads'}/${op.name}`;
+      return attempt(op, () => client.request('POST', `/repos/${fork}/git/refs`, { ref, sha: op.to }));
+    }
+    case 'fast-forward': {
+      if (options.dryRun) return { ...op, status: 'planned' };
+      return attempt(
+        op,
+        () => client.request('PATCH', `/repos/${fork}/git/refs/${refPath(`heads/${op.name}`)}`, { sha: op.to, force: false }),
+        (err) => (err.status === 422 && !isWorkflowPermissionError(err) ? 'fork changed during run; retried next run' : null),
+      );
+    }
+    case 'backup-force':
+      return backupThenForce(client, ctx, op, options, taken);
+    default:
+      throw new Error(`apply: unknown outcome "${op.outcome}"`);
+  }
+}
+
+export async function apply(client, ctx, ops, options) {
+  const taken = new Set(ctx.forkBranches.keys());
+  const results = [];
+  let stop = null;
+  for (const op of ops) {
+    if (stop) {
+      results.push({ ...op, status: 'skipped', error: stop.message });
+      continue;
+    }
+    try {
+      results.push(await applyOne(client, ctx, op, options, taken));
+    } catch (err) {
+      if (!(err instanceof PartialStop)) throw err;
+      stop = err;
+      results.push({ ...op, status: 'skipped', error: err.message });
+    }
+  }
+  return { results, partial: stop !== null };
 }
