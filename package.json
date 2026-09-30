@@ -1,0 +1,13 @@
+{
+  "name": "fork-keeper",
+  "version": "1.0.0",
+  "private": true,
+  "description": "GitHub Action: nightly, loss-proof backup of a fork from its upstream",
+  "type": "module",
+  "license": "MIT",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "test": "node --test \"test/unit/*.test.js\"",
+    "e2e": "node test/e2e/run.mjs"
+  }
+}
