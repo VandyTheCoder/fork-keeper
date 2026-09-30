@@ -67,6 +67,13 @@ test('resolve: an unreadable upstream is fatal and changes nothing', async () =>
   assert.equal(gh.requests.filter((r) => r.method !== 'GET').length, 0);
 });
 
+test('resolve: 403 on the fork\'s own ref listing means the token cannot reach it', async () => {
+  const { gh, client } = setup();
+  gh.fail('GET', /^\/repos\/me\/b\/git\/matching-refs\/heads$/, { status: 403, body: { message: 'Resource not accessible by personal access token' } });
+  await assert.rejects(resolve(client, 'me/b'), fatalWith(
+    'Token can\'t reach `me/b` — add it to the PAT\'s repository access with Contents + Workflows: Read and write.'));
+});
+
 test('resolve: an empty repository (409) has no refs', async () => {
   const { gh, client } = setup();
   gh.fail('GET', /^\/repos\/me\/b\/git\/matching-refs\/tags$/, { status: 409, body: { message: 'Git Repository is empty.' } });

@@ -44,8 +44,15 @@ export async function resolve(client, fork) {
     if (isStatus(err, 403, 404)) throw new FatalError(MESSAGES.upstreamGone(fork));
     throw err;
   }
-  const forkBranches = await listRefs(client, fork, 'heads');
-  const forkTags = await listRefs(client, fork, 'tags');
+  let forkBranches;
+  let forkTags;
+  try {
+    forkBranches = await listRefs(client, fork, 'heads');
+    forkTags = await listRefs(client, fork, 'tags');
+  } catch (err) {
+    if (isStatus(err, 403, 404)) throw new FatalError(MESSAGES.noAccess(fork));
+    throw err;
+  }
 
   return { fork, upstream, defaultBranch: repo.parent.default_branch, upstreamBranches, upstreamTags, forkBranches, forkTags };
 }
