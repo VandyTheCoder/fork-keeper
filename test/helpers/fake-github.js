@@ -95,6 +95,13 @@ export function createFakeGitHub({ fork = 'me/b', upstream = 'org/a', defaultBra
       else if (aheadBy === 0) status = 'behind';
       return json(200, { status, ahead_by: aheadBy, behind_by: behindBy, merge_base_commit: mb ? { sha: mb } : null });
     }
+    if (method === 'GET' && (m = path.match(/^\/repos\/([^/]+\/[^/]+)\/git\/ref\/(heads|tags)\/(.+)$/))) {
+      const repoRefs = refs.get(m[1]);
+      const ref = `refs/${m[2]}/${decodeURIComponent(m[3])}`;
+      const sha = repoRefs?.get(ref);
+      if (!sha) return json(404, { message: 'Not Found' });
+      return json(200, { ref, object: { sha, type: tagObjects.has(sha) ? 'tag' : 'commit' } });
+    }
     if (method === 'GET' && (m = path.match(/^\/repos\/([^/]+\/[^/]+)\/git\/commits\/([0-9a-f]+)$/))) {
       const c = commits.get(m[2]);
       if (!c) return json(404, { message: 'Not Found' });

@@ -166,6 +166,23 @@ async function backupThenForce(client, ctx, op, options, taken) {
   return { ...op, status: 'done', backupName };
 }
 
+// A CREATE can 422 "already exists" if another run (or a stale plan) got there first.
+// That is only a no-op, not an error, when the existing ref already points at op.to.
+async function createRef(client, fork, op) {
+  const kind = op.kind === 'tag' ? 'tags' : 'heads';
+  try {
+    await client.request('POST', `/repos/${fork}/git/refs`, { ref: `refs/${kind}/${op.name}`, sha: op.to });
+    return { ...op, status: 'done' };
+  } catch (err) {
+    if (!(err instanceof GitHubError)) throw err;
+    if (err.status === 422 && /already exists/i.test(err.message)) {
+      const existing = await client.request('GET', `/repos/${fork}/git/ref/${refPath(`${kind}/${op.name}`)}`);
+      if (existing.object.sha === op.to) return { ...op, status: 'done' };
+    }
+    return { ...op, status: 'error', error: describeWriteError(err) };
+  }
+}
+
 async function applyOne(client, ctx, op, options, taken) {
   const { fork } = ctx;
   switch (op.outcome) {
@@ -177,8 +194,7 @@ async function applyOne(client, ctx, op, options, taken) {
       return { ...op, status: 'error' };
     case 'create': {
       if (options.dryRun) return { ...op, status: 'planned' };
-      const ref = `refs/${op.kind === 'tag' ? 'tags' : 'heads'}/${op.name}`;
-      return attempt(op, () => client.request('POST', `/repos/${fork}/git/refs`, { ref, sha: op.to }));
+      return createRef(client, fork, op);
     }
     case 'fast-forward': {
       if (options.dryRun) return { ...op, status: 'planned' };

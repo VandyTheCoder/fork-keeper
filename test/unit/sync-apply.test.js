@@ -49,6 +49,24 @@ test('create writes branch and tag refs at the upstream SHA', async () => {
   assert.equal(gh.getRef('me/b', 'refs/tags/v1'), tagSha);
 });
 
+test('a CREATE that collides with an identical ref already there is treated as done', async () => {
+  const { gh, client, ctx } = setup();
+  const c = gh.commit();
+  gh.setRef('me/b', 'refs/heads/dev', c); // exists already, absent from the plan's forkBranches view
+  const { results } = await apply(client, ctx(), [{ kind: 'branch', name: 'dev', to: c, outcome: 'create' }], OPTIONS);
+  assert.equal(results[0].status, 'done');
+});
+
+test('a CREATE that collides with a different ref is still an error', async () => {
+  const { gh, client, ctx } = setup();
+  const c1 = gh.commit();
+  const c2 = gh.commit();
+  gh.setRef('me/b', 'refs/heads/dev', c1);
+  const { results } = await apply(client, ctx(), [{ kind: 'branch', name: 'dev', to: c2, outcome: 'create' }], OPTIONS);
+  assert.equal(results[0].status, 'error');
+  assert.match(results[0].error, /Reference already exists/);
+});
+
 test('fast-forward updates the ref with force: false', async () => {
   const { gh, client, ctx } = setup();
   const c1 = gh.commit();
