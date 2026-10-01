@@ -1,0 +1,44 @@
+name: 'Fork Keeper'
+description: 'Nightly, loss-proof backup of a GitHub fork: fast-forwards from upstream and saves a backup branch before following any force-push.'
+author: 'Vandy Sodanheang'
+branding:
+  icon: 'shield'
+  color: 'green'
+inputs:
+  token:
+    description: 'Fine-grained PAT with Contents: Read and write and Workflows: Read and write on the fork.'
+    required: true
+  repository:
+    description: 'The fork to back up, as owner/name. Its upstream is read from GitHub, never configured.'
+    required: false
+    default: '${{ github.repository }}'
+  branches:
+    description: '"*" for every branch, or a newline-separated list of exact branch names.'
+    required: false
+    default: '*'
+  tags:
+    description: 'Also back up tags ("true" or "false"). Moved upstream tags are never overwritten.'
+    required: false
+    default: 'true'
+  backup-branch-pattern:
+    description: 'Name of the branch saved before a force-sync. Placeholders {branch} and {date}; must contain {date}, and {branch} when more than one branch is synced.'
+    required: false
+    default: 'backup/{branch}/{date}'
+  timezone:
+    description: 'IANA time zone used to render {date}, e.g. Asia/Phnom_Penh.'
+    required: false
+    default: 'UTC'
+  dry-run:
+    description: 'Plan and report only; write nothing ("true" or "false").'
+    required: false
+    default: 'false'
+outputs:
+  changed:
+    description: '"true" when any ref in the fork was written.'
+  rewritten:
+    description: 'Number of branches backed up and then force-synced.'
+  summary:
+    description: 'JSON: upstream, fork, counts per outcome, and every ref that was not already up to date.'
+runs:
+  using: 'node24'
+  main: 'src/main.js'
