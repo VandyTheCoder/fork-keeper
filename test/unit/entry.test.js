@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, symlinkSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -21,9 +21,14 @@ test('invoking the entry point directly fails fast with no token', () => {
 
 test('invoking the entry point through a symlink still runs it', () => {
   const dir = mkdtempSync(join(tmpdir(), 'fork-keeper-entry-'));
-  const link = join(dir, 'link');
-  symlinkSync(join(repoRoot, 'src'), link);
-  const result = runEntry(join(link, 'index.js'));
-  assert.equal(result.status, 1);
-  assert.match(result.stdout, /::error::token is required\./);
+  try {
+    const link = join(dir, 'link');
+    symlinkSync(join(repoRoot, 'src'), link);
+    const result = runEntry(join(link, 'index.js'));
+    assert.equal(result.status, 1);
+    assert.match(result.stdout, /::error::token is required\./);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+  assert.equal(existsSync(dir), false);
 });
