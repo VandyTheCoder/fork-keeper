@@ -42,8 +42,8 @@ test('resolve: a fork that is not a fork is fatal', async () => {
 test('resolve: a fork with no parent means the upstream is gone', async () => {
   const { gh, client } = setup();
   delete gh.repoMeta['me/b'].parent;
-  await assert.rejects(resolve(client, 'me/b'),
-    fatalWith('Upstream no longer reachable — `me/b` is now the only copy; nothing changed.'));
+  await assert.rejects(resolve(client, 'me/b'), fatalWith(
+    'Upstream unreachable — `me/b` no longer has a parent repository (the upstream was deleted or detached). Nothing changed.'));
 });
 
 test('resolve: 401 means the token is invalid or expired', async () => {
@@ -56,14 +56,17 @@ test('resolve: 401 means the token is invalid or expired', async () => {
 test('resolve: 404 on the fork means the token cannot reach it', async () => {
   const { client } = setup();
   await assert.rejects(resolve(client, 'me/missing'), fatalWith(
-    'Token can\'t reach `me/missing` — add it to the PAT\'s repository access with Contents + Workflows: Read and write.'));
+    'Token can\'t reach `me/missing` — it needs write access to the fork (fine-grained token: Contents + Workflows: '
+    + 'Read and write; classic token: repo + workflow scopes, SSO-authorised if the org enforces SSO). '
+    + 'GitHub said: 404 Not Found'));
 });
 
 test('resolve: an unreadable upstream is fatal and changes nothing', async () => {
   const { gh, client } = setup();
   gh.fail('GET', /^\/repos\/org\/a\/git\/matching-refs/, { status: 404, body: { message: 'Not Found' } });
-  await assert.rejects(resolve(client, 'me/b'),
-    fatalWith('Upstream no longer reachable — `me/b` is now the only copy; nothing changed.'));
+  await assert.rejects(resolve(client, 'me/b'), fatalWith(
+    'Upstream `org/a` is unreachable — it was deleted, or this token lost read access to it. '
+    + 'Nothing changed in `me/b`. GitHub said: 404 Not Found'));
   assert.equal(gh.requests.filter((r) => r.method !== 'GET').length, 0);
 });
 
@@ -71,7 +74,9 @@ test('resolve: 403 on the fork\'s own ref listing means the token cannot reach i
   const { gh, client } = setup();
   gh.fail('GET', /^\/repos\/me\/b\/git\/matching-refs\/heads$/, { status: 403, body: { message: 'Resource not accessible by personal access token' } });
   await assert.rejects(resolve(client, 'me/b'), fatalWith(
-    'Token can\'t reach `me/b` — add it to the PAT\'s repository access with Contents + Workflows: Read and write.'));
+    'Token can\'t reach `me/b` — it needs write access to the fork (fine-grained token: Contents + Workflows: '
+    + 'Read and write; classic token: repo + workflow scopes, SSO-authorised if the org enforces SSO). '
+    + 'GitHub said: 403 Resource not accessible by personal access token'));
 });
 
 test('resolve: an empty repository (409) has no refs', async () => {

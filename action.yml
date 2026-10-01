@@ -6,7 +6,7 @@ branding:
   color: 'green'
 inputs:
   token:
-    description: 'Fine-grained PAT with Contents: Read and write and Workflows: Read and write on the fork.'
+    description: 'Token with write access to the fork and read access to its upstream. Fine-grained: Contents + Workflows: Read and write. Classic (needed when the upstream is private and owned by someone else): repo + workflow scopes.'
     required: true
   repository:
     description: 'The fork to back up, as owner/name. Its upstream is read from GitHub, never configured.'

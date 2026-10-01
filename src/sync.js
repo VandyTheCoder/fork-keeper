@@ -5,9 +5,14 @@ import { MAX_BACKUP_SUFFIX, pickFreeBackupName, renderBackupName } from './refna
 
 export const MESSAGES = {
   auth: 'Token invalid or expired — rotate the secret passed as `token`.',
-  noAccess: (fork) => `Token can't reach \`${fork}\` — add it to the PAT's repository access with Contents + Workflows: Read and write.`,
+  noAccess: (fork, detail) => `Token can't reach \`${fork}\` — it needs write access to the fork (fine-grained token: `
+    + 'Contents + Workflows: Read and write; classic token: repo + workflow scopes, SSO-authorised if the org '
+    + `enforces SSO). GitHub said: ${detail}`,
   notFork: (fork) => `\`${fork}\` is not a fork; nothing to mirror.`,
-  upstreamGone: (fork) => `Upstream no longer reachable — \`${fork}\` is now the only copy; nothing changed.`,
+  noParent: (fork) => `Upstream unreachable — \`${fork}\` no longer has a parent repository (the upstream was `
+    + 'deleted or detached). Nothing changed.',
+  upstreamUnreachable: (fork, upstream, detail) => `Upstream \`${upstream}\` is unreachable — it was deleted, or `
+    + `this token lost read access to it. Nothing changed in \`${fork}\`. GitHub said: ${detail}`,
 };
 
 const isStatus = (err, ...statuses) => err instanceof GitHubError && statuses.includes(err.status);
@@ -24,18 +29,20 @@ async function listRefs(client, repo, kind) {
   return new Map(refs.filter((r) => r.ref.startsWith(prefix)).map((r) => [r.ref.slice(prefix.length), r.object.sha]));
 }
 
+const detailOf = (err) => `${err.status} ${err.message}`;
+
 export async function resolve(client, fork) {
   let repo;
   try {
     repo = await client.request('GET', `/repos/${fork}`);
   } catch (err) {
     if (isStatus(err, 401)) throw new FatalError(MESSAGES.auth);
-    if (isStatus(err, 403, 404)) throw new FatalError(MESSAGES.noAccess(fork));
+    if (isStatus(err, 403, 404)) throw new FatalError(MESSAGES.noAccess(fork, detailOf(err)));
     throw err;
   }
   if (!repo.fork) throw new FatalError(MESSAGES.notFork(fork));
   const upstream = repo.parent?.full_name;
-  if (!upstream) throw new FatalError(MESSAGES.upstreamGone(fork));
+  if (!upstream) throw new FatalError(MESSAGES.noParent(fork));
 
   let upstreamBranches;
   let upstreamTags;
@@ -43,7 +50,7 @@ export async function resolve(client, fork) {
     upstreamBranches = await listRefs(client, upstream, 'heads');
     upstreamTags = await listRefs(client, upstream, 'tags');
   } catch (err) {
-    if (isStatus(err, 403, 404)) throw new FatalError(MESSAGES.upstreamGone(fork));
+    if (isStatus(err, 403, 404)) throw new FatalError(MESSAGES.upstreamUnreachable(fork, upstream, detailOf(err)));
     throw err;
   }
   let forkBranches;
@@ -52,7 +59,7 @@ export async function resolve(client, fork) {
     forkBranches = await listRefs(client, fork, 'heads');
     forkTags = await listRefs(client, fork, 'tags');
   } catch (err) {
-    if (isStatus(err, 403, 404)) throw new FatalError(MESSAGES.noAccess(fork));
+    if (isStatus(err, 403, 404)) throw new FatalError(MESSAGES.noAccess(fork, detailOf(err)));
     throw err;
   }
 
@@ -88,7 +95,7 @@ const WRITES_FOR_REF_AND_FORCE = 2; // backup ref + forced update
 function describeWriteError(err) {
   if (isWorkflowPermissionError(err)) return 'PAT lacks Workflows: Read and write';
   if (err.status === 401) return MESSAGES.auth;
-  if (err.status === 403) return 'Token cannot write to the fork — it needs Contents: Read and write';
+  if (err.status === 403) return 'Token cannot write to the fork — it needs Contents: Read and write (fine-grained) or the repo scope (classic)';
   return `GitHub ${err.status}: ${err.message}`;
 }
 
