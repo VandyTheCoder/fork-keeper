@@ -72,6 +72,10 @@ export async function compareBranches(client, fork, pairs) {
       });
     } catch (err) {
       if (err instanceof PartialStop || !(err instanceof GitHubError)) throw err;
+      if (err.status === 404 && /no common ancestor/i.test(err.message)) {
+        comparisons.set(name, { status: 'diverged', aheadBy: null, behindBy: null, mergeBase: null });
+        continue;
+      }
       comparisons.set(name, { error: `compare failed: ${err.status} ${err.message}` });
     }
   }

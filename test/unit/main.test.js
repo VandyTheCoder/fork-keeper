@@ -128,6 +128,22 @@ test('a failed force after a successful backup fails the run and names the backu
   assert.ok(h.lines.includes('::error::branch main: backup backup/main/2026-10-01 created, but force-sync failed: PAT lacks Workflows: Read and write'));
 });
 
+test('a full-history rewrite (no common ancestor) is backed up before the fork follows it', async () => {
+  const h = harness();
+  const old = h.gh.commit(); // fork's root — shares no history with upstream's new root
+  const rewritten = h.gh.commit(); // upstream's unrelated new root
+  h.gh.setRef('org/a', 'refs/heads/main', rewritten);
+  h.gh.setRef('me/b', 'refs/heads/main', old);
+
+  assert.equal(await h.exec(), 0);
+  const backup = h.gh.getRef('me/b', 'refs/heads/backup/main/2026-10-01');
+  assert.ok(backup, 'backup branch is created even with no common ancestor');
+  assert.deepEqual(h.gh.commits.get(backup).parents, [old]);
+  assert.match(h.gh.commits.get(backup).message, /^Commits preserved only here: {2}all \(no common ancestor\)$/m);
+  assert.equal(h.gh.getRef('me/b', 'refs/heads/main'), rewritten);
+  assert.equal(h.outputs().rewritten, '1');
+});
+
 test('branch names with URL-special characters are synced', async () => {
   const h = harness();
   const c1 = h.gh.commit();

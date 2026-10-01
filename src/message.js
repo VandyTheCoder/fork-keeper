@@ -10,7 +10,7 @@ export function backupCommitMessage({ branch, upstream, fork, from, to, mergeBas
     `Previous ${branch}:  ${from}`,
     `New upstream ${branch}:  ${to}`,
     `Common ancestor:  ${mergeBase ?? 'none'}`,
-    `Commits preserved only here:  ${behindBy}`,
+    `Commits preserved only here:  ${behindBy ?? 'all (no common ancestor)'}`,
     `Detected:  ${detectedAt} (${timeZone})`,
     `Run:  ${runUrl}`,
     '',

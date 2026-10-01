@@ -85,13 +85,14 @@ export function createFakeGitHub({ fork = 'me/b', upstream = 'org/a', defaultBra
       if (!commits.has(base) || !commits.has(head)) return json(404, { message: 'Not Found' });
       const baseAnc = ancestors(base);
       const headAnc = ancestors(head);
+      const mb = mergeBase(base, headAnc);
+      if (base !== head && !mb) return json(404, { message: `No common ancestor between ${base} and ${head}.` });
       const aheadBy = [...headAnc].filter((s) => !baseAnc.has(s)).length;
       const behindBy = [...baseAnc].filter((s) => !headAnc.has(s)).length;
       let status = 'diverged';
       if (base === head) status = 'identical';
       else if (behindBy === 0) status = 'ahead';
       else if (aheadBy === 0) status = 'behind';
-      const mb = mergeBase(base, headAnc);
       return json(200, { status, ahead_by: aheadBy, behind_by: behindBy, merge_base_commit: mb ? { sha: mb } : null });
     }
     if (method === 'GET' && (m = path.match(/^\/repos\/([^/]+\/[^/]+)\/git\/commits\/([0-9a-f]+)$/))) {

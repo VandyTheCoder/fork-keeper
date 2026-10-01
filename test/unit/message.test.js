@@ -29,3 +29,8 @@ test('backupCommitMessage follows the spec format exactly', () => {
 test('backupCommitMessage says "none" when there is no common ancestor', () => {
   assert.match(backupCommitMessage({ ...args, mergeBase: null }), /^Common ancestor: {2}none$/m);
 });
+
+test('backupCommitMessage explains an unknown preserved count for a full-history rewrite', () => {
+  assert.match(backupCommitMessage({ ...args, mergeBase: null, behindBy: null }),
+    /^Commits preserved only here: {2}all \(no common ancestor\)$/m);
+});

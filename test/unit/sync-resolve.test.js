@@ -101,3 +101,11 @@ test('compareBranches records a GitHub error against that branch', async () => {
   const result = await compareBranches(client, 'me/b', [{ name: 'main', from: 'dead', to: 'beef' }]);
   assert.deepEqual(result.get('main'), { error: 'compare failed: 404 Not Found' });
 });
+
+test('compareBranches reports unrelated histories as diverged with unknown counts', async () => {
+  const { gh, client } = setup();
+  const forkRoot = gh.commit(); // no shared ancestor with upstream's root
+  const upstreamRoot = gh.commit();
+  const result = await compareBranches(client, 'me/b', [{ name: 'main', from: forkRoot, to: upstreamRoot }]);
+  assert.deepEqual(result.get('main'), { status: 'diverged', aheadBy: null, behindBy: null, mergeBase: null });
+});
