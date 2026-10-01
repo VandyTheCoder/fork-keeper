@@ -36,7 +36,7 @@ New upstream main:  8d41e07…
 Common ancestor:  a1b2c3d…
 Commits preserved only here:  12
 Detected:  2026-10-01 00:04 (Asia/Phnom_Penh)
-Run:  https://github.com/you/fork-sync-hub/actions/runs/123
+Run:  https://github.com/you/project/actions/runs/123
 ```
 
 ## Quick start
@@ -46,67 +46,25 @@ upstream and write to the fork.
 
 ### The token
 
-- **Upstream public, or owned by the same account or organisation as the fork:** a
-  fine-grained personal access token. Resource owner: the fork's owner. Repository access:
-  *Only select repositories* → the fork. Permissions: **Contents: Read and write** and
-  **Workflows: Read and write** (upstream workflow files are backed up too).
-- **Upstream private and owned by someone else:** fine-grained tokens cannot reach it, so
-  use a classic token with the `repo` and `workflow` scopes. If the fork's organisation
-  enforces SSO, authorise the token for it.
+Both kinds of token need **write access to the fork** and **read access to its upstream** —
+a fine-grained token whose repository access covers only the fork fails as soon as the
+upstream is private, even if the same account owns both.
+
+- **Upstream public, or private and owned by the same account or organisation as the
+  fork:** a fine-grained personal access token. Resource owner: the fork's owner.
+  Repository access: *Only select repositories* → the fork, **and the upstream too if it's
+  private** (a public upstream needs no entry — it's already readable). Permissions on the
+  fork: **Contents: Read and write** and **Workflows: Read and write** (upstream workflow
+  files are backed up too); on a private upstream, the fine-grained picker's defaults are
+  enough since fork-keeper only reads it.
+- **Upstream private and owned by someone else:** a fine-grained token can't select a
+  repository outside its resource owner, so it can never reach this upstream. Use a classic
+  token with the `repo` and `workflow` scopes instead. If the fork's organisation enforces
+  SSO, authorise the token for it.
 
 Pick an expiry and put the renewal in your calendar.
 
-### Option 1 — a control branch inside the fork
-
-Scheduled workflows only run from a repository's default branch. A workflow committed to
-the fork's `main` would make it differ from upstream, so fork-keeper would back it up and
-reset `main` — deleting its own schedule. Keep the workflow on a branch of its own:
-
-1. Create a branch with no history that holds only the workflow and a README pointing
-   readers to `main`:
-   ```sh
-   git switch --orphan fork-keeper
-   git rm -rf --quiet .
-   mkdir -p .github/workflows    # add sync.yml (below) and a README
-   git add . && git commit -m "fork-keeper control branch" && git push origin fork-keeper
-   ```
-2. In the fork's settings, make `fork-keeper` the **default branch** and enable Actions
-   (GitHub disables them on forks).
-3. Add the token as the Actions secret `FORK_SYNC_TOKEN`.
-
-`.github/workflows/sync.yml` on the `fork-keeper` branch:
-
-```yaml
-name: Sync from upstream
-on:
-  schedule:
-    - cron: '0 17 * * *'   # 00:00 in UTC+7 — cron is always UTC
-  workflow_dispatch:
-    inputs:
-      dry_run:
-        description: 'Plan only — write nothing'
-        type: boolean
-        default: false
-permissions: {}
-jobs:
-  sync:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: VandyTheCoder/fork-keeper@v1.0.0   # better: pin the release's full commit SHA
-        with:
-          token: ${{ secrets.FORK_SYNC_TOKEN }}
-          branches: main
-          backup-branch-pattern: backup/{date}
-          timezone: Asia/Phnom_Penh
-          dry-run: ${{ inputs.dry_run }}
-```
-
-`branches: main` keeps the control branch out of the mirror. Note that enabling Actions in
-a fork also enables any workflows the upstream has, and they will run on the commits
-fork-keeper syncs.
-
-### Option 2 — a separate private hub
+### Option 1 — a separate private hub (recommended)
 
 Leaves the fork untouched and can back up several forks from one place. Create a private
 repository (GitHub disables scheduled workflows in public repositories after 60 days
@@ -137,6 +95,70 @@ jobs:
           timezone: Asia/Phnom_Penh
 ```
 
+### Option 2 — a control branch inside the fork
+
+Scheduled workflows only run from a repository's default branch. A workflow committed to
+the fork's `main` would make it differ from upstream, so fork-keeper would back it up and
+reset `main` — deleting its own schedule. Keep the workflow on a branch of its own:
+
+1. Start from a fresh clone and create an orphan branch holding only the workflow and a
+   README pointing readers to `main`. Add the tracked files with explicit paths — the
+   orphan branch still has the fork's other files sitting untracked in the working tree,
+   and a bare `git add .` would pull them all in:
+   ```sh
+   git clone https://github.com/you/project fork-keeper-setup && cd fork-keeper-setup
+   git switch --orphan fork-keeper
+   mkdir -p .github/workflows    # add sync.yml (below) and a README.md pointing to main
+   git add .github README.md
+   git commit -m "fork-keeper control branch"
+   git push origin fork-keeper
+   ```
+2. In the fork's settings, make `fork-keeper` the **default branch** and enable Actions
+   (GitHub disables them on forks).
+3. Add the token as the Actions secret `FORK_SYNC_TOKEN`.
+
+`.github/workflows/sync.yml` on the `fork-keeper` branch:
+
+```yaml
+name: Sync from upstream
+on:
+  schedule:
+    - cron: '0 17 * * *'   # 00:00 in UTC+7 — cron is always UTC
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Plan only — write nothing'
+        type: boolean
+        default: false
+permissions: {}
+concurrency: { group: fork-sync, cancel-in-progress: false }
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: VandyTheCoder/fork-keeper@v1.0.0   # better: pin the release's full commit SHA
+        with:
+          token: ${{ secrets.FORK_SYNC_TOKEN }}
+          branches: main
+          backup-branch-pattern: backup/{date}
+          timezone: Asia/Phnom_Penh
+          dry-run: ${{ inputs.dry_run }}
+```
+
+`branches: main` keeps the control branch out of the mirror. Note that enabling Actions in
+a fork also enables any workflows the upstream has, and they will run on the commits
+fork-keeper syncs.
+
+**Security.** Once Actions are enabled in the fork, any workflow the upstream adds runs in
+the fork on every sync and can read the fork's secrets; anyone with write access to the
+fork can also run a workflow that reads repository secrets. Hardening if you still choose
+Option 2: store the token as an **environment** secret whose deployment branches are
+limited to `fork-keeper` (private repos need GitHub Pro/Team/Enterprise) and add
+`environment: <name>` to the job; protect the `fork-keeper` branch; set the fork's default
+`GITHUB_TOKEN` permissions to read-only; issue the token from a dedicated machine user that
+can see only the upstream and the fork.
+
 Try either setup first with a dry run (Run workflow, or `dry-run: true`): the job summary
 shows what would happen without writing anything.
 
@@ -166,7 +188,7 @@ Example — alert when history was rewritten:
       - id: sync
         uses: VandyTheCoder/fork-keeper@v1.0.0
         with: { token: '${{ secrets.FORK_SYNC_TOKEN }}', repository: you/project }
-      - if: steps.sync.outputs.rewritten != '0'
+      - if: always() && steps.sync.outputs.rewritten != '' && steps.sync.outputs.rewritten != '0'
         run: echo "Upstream rewrote history; see the job summary for backup branches."
 ```
 
@@ -187,8 +209,13 @@ Example — alert when history was rewritten:
 ## Limits of a fork as a backup
 
 - If the upstream is **private** and gets deleted, GitHub deletes its forks too.
+- Losing access to a private upstream — removed from the org, collaborator access
+  revoked — can delete your fork the same way, even though you never touched it.
 - A DMCA takedown can disable a whole fork network.
 - If the upstream is **public** and is deleted or made private, the fork survives.
+- If a private upstream is later **made public**, GitHub detaches its existing forks into
+  standalone repositories; fork-keeper's next run then stops with "`<B>` is not a fork;
+  nothing to mirror."
 
 ## Security
 
