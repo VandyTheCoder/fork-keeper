@@ -110,6 +110,15 @@ test('a fatal problem exits 1 with one plain-English error', async () => {
   assert.deepEqual(h.lines.filter((l) => l.startsWith('::error::')), ['::error::`me/b` is not a fork; nothing to mirror.']);
 });
 
+test('a GitHub 5xx that survives retries fails cleanly, not as a crash', async () => {
+  const h = harness();
+  h.gh.fail('GET', /^\/repos\/me\/b$/, { status: 502, body: { message: 'Bad Gateway' } }, { times: 4 });
+  assert.equal(await h.exec(), 1);
+  assert.deepEqual(h.lines.filter((l) => l.startsWith('::error::')), [
+    '::error::GitHub request failed (502 Bad Gateway) — nothing changed; the next run retries.',
+  ]);
+});
+
 test('invalid inputs exit 1 before any request', async () => {
   const h = harness();
   assert.equal(await h.exec({ INPUT_TIMEZONE: 'Mars/Olympus' }), 1);

@@ -1,7 +1,7 @@
 import { appendFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { FatalError, InputError, PartialStop } from './errors.js';
-import { createClient } from './github.js';
+import { GitHubError, createClient } from './github.js';
 import { parseInputs } from './inputs.js';
 import { branchesToCompare, plan } from './plan.js';
 import { backupNameRegex, formatDate, formatDateTime } from './refname.js';
@@ -50,6 +50,10 @@ export async function run({
   } catch (err) {
     if (err instanceof FatalError) {
       log(`::error::${escapeData(err.message)}`);
+      return 1;
+    }
+    if (err instanceof GitHubError) {
+      log(`::error::${escapeData(`GitHub request failed (${err.status} ${err.message}) — nothing changed; the next run retries.`)}`);
       return 1;
     }
     if (!(err instanceof PartialStop)) throw err;
