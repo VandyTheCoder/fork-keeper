@@ -41,4 +41,4 @@ outputs:
     description: 'JSON: upstream, fork, counts per outcome, and every ref that was not already up to date.'
 runs:
   using: 'node24'
-  main: 'src/main.js'
+  main: 'src/index.js'

@@ -1,6 +1,5 @@
 import { appendFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
-import { pathToFileURL } from 'node:url';
 import { FatalError, InputError, PartialStop } from './errors.js';
 import { createClient } from './github.js';
 import { parseInputs } from './inputs.js';
@@ -12,7 +11,7 @@ import { apply, compareBranches, resolve } from './sync.js';
 export async function run({
   env = process.env,
   fetch = globalThis.fetch,
-  sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  sleep = (ms) => new Promise((done) => setTimeout(done, ms)),
   now = () => Date.now(),
   log = (line) => console.log(line),
   uuid = randomUUID,
@@ -70,15 +69,4 @@ export async function run({
     appendFileSync(env.GITHUB_STEP_SUMMARY, stepSummary(results, { fork, upstream, dryRun: inputs.dryRun, partial, serverUrl }));
   }
   return exitCode(results);
-}
-
-const invokedDirectly = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
-if (invokedDirectly) {
-  run().then(
-    (code) => { process.exitCode = code; },
-    (err) => {
-      console.log(`::error::${escapeData(`fork-keeper crashed: ${err?.stack ?? err}`)}`);
-      process.exitCode = 1;
-    },
-  );
 }

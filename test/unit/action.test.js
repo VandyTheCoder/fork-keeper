@@ -23,6 +23,6 @@ test('action.yml declares the three outputs', () => {
   assert.deepEqual(keys(section('outputs', 'runs')), ['changed', 'rewritten', 'summary']);
 });
 
-test('action.yml runs node24 from src/main.js', () => {
-  assert.match(yml, /^runs:\n {2}using: 'node24'\n {2}main: 'src\/main\.js'$/m);
+test('action.yml runs node24 from src/index.js', () => {
+  assert.match(yml, /^runs:\n {2}using: 'node24'\n {2}main: 'src\/index\.js'$/m);
 });
