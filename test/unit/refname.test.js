@@ -90,3 +90,9 @@ test('validatePattern rejects patterns that render invalid branch names', () => 
   assert.equal(errors.length, 1);
   assert.match(errors[0], /invalid branch name/);
 });
+
+test('validatePattern rejects a pattern that would nest under the branch itself', () => {
+  assert.deepEqual(validatePattern('{branch}/backup-{date}', { multiBranch: false }), [
+    'backup-branch-pattern must not start with {branch}/ — the backup would clash with the branch itself.',
+  ]);
+});

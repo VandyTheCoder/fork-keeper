@@ -79,5 +79,8 @@ export function validatePattern(pattern, { multiBranch }) {
   }
   const sample = renderBackupName(pattern, { branch: 'main', date: '2026-01-01' });
   if (!isValidRefName(sample)) errors.push(`backup-branch-pattern renders an invalid branch name: "${sample}".`);
+  if (sample.startsWith('main/')) {
+    errors.push('backup-branch-pattern must not start with {branch}/ — the backup would clash with the branch itself.');
+  }
   return errors;
 }
