@@ -7,7 +7,6 @@
   "license": "MIT",
   "engines": { "node": ">=24" },
   "scripts": {
-    "test": "node --test \"test/unit/*.test.js\"",
-    "e2e": "node test/e2e/run.mjs"
+    "test": "node --test \"test/unit/*.test.js\""
   }
 }

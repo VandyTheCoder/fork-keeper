@@ -1,8 +1,0 @@
-# Copy to .envrc (gitignored), fill in, then run: direnv allow
-# Fine-grained PAT, resource owner VandyTheCoder, only the lab fork,
-# Contents: Read and write + Workflows: Read and write.
-export FORK_KEEPER_E2E_TOKEN=
-# Same, but Contents: Read and write ONLY (used by spike check 6; delete after the spike).
-export FORK_KEEPER_E2E_TOKEN_NO_WF=
-export E2E_UPSTREAM=fork-keeper-lab/lab-upstream
-export E2E_FORK=VandyTheCoder/lab-upstream
