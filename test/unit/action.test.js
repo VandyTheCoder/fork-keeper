@@ -26,3 +26,8 @@ test('action.yml declares the three outputs', () => {
 test('action.yml runs node24 from src/index.js', () => {
   assert.match(yml, /^runs:\n {2}using: 'node24'\n {2}main: 'src\/index\.js'$/m);
 });
+
+test('action.yml description fits the Marketplace limit (under 125 characters)', () => {
+  const description = yml.match(/^description: '(.*)'$/m)[1];
+  assert.ok(description.length < 125, `description is ${description.length} characters`);
+});

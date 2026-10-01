@@ -1,5 +1,5 @@
 name: 'Fork Keeper'
-description: 'Nightly, loss-proof backup of a GitHub fork: fast-forwards from upstream and saves a backup branch before following any force-push.'
+description: 'Loss-proof fork backup: syncs branches and tags from upstream, saving a backup branch before following any force-push.'
 author: 'Vandy Sodanheang'
 branding:
   icon: 'shield'
