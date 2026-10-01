@@ -96,3 +96,7 @@ test('validatePattern rejects a pattern that would nest under the branch itself'
     'backup-branch-pattern must not start with {branch}/ — the backup would clash with the branch itself.',
   ]);
 });
+
+test('validatePattern accepts a literal pattern that merely renders starting with a branch name', () => {
+  assert.deepEqual(validatePattern('main/backups/{date}', { multiBranch: false }), []);
+});
