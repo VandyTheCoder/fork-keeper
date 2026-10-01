@@ -175,7 +175,7 @@ test('a force refused for workflow permission keeps the backup and says so', asy
   const { results } = await apply(client, ctx(new Map([['main', old]])), [op], OPTIONS);
   assert.equal(results[0].status, 'error');
   assert.equal(results[0].backupName, 'backup/main/2026-10-01');
-  assert.equal(results[0].error, 'backup backup/main/2026-10-01 created, but force-sync failed: PAT lacks Workflows: Read and write');
+  assert.equal(results[0].error, 'backup backup/main/2026-10-01 created, but force-sync failed: Token cannot update workflow files — it needs Workflows: Read and write (fine-grained) or the workflow scope (classic)');
   assert.ok(gh.getRef('me/b', 'refs/heads/backup/main/2026-10-01'));
 });
 

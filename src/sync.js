@@ -93,7 +93,9 @@ const WRITES_PER_BACKUP = 3; // backup commit, backup ref, forced update
 const WRITES_FOR_REF_AND_FORCE = 2; // backup ref + forced update
 
 function describeWriteError(err) {
-  if (isWorkflowPermissionError(err)) return 'PAT lacks Workflows: Read and write';
+  if (isWorkflowPermissionError(err)) {
+    return 'Token cannot update workflow files — it needs Workflows: Read and write (fine-grained) or the workflow scope (classic)';
+  }
   if (err.status === 401) return MESSAGES.auth;
   if (err.status === 403) return 'Token cannot write to the fork — it needs Contents: Read and write (fine-grained) or the repo scope (classic)';
   return `GitHub ${err.status}: ${err.message}`;

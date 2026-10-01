@@ -134,7 +134,7 @@ test('a failed force after a successful backup fails the run and names the backu
     body: { message: 'refusing to allow a Personal Access Token to create or update workflow `.github/workflows/ci.yml` without `workflow` scope' },
   });
   assert.equal(await h.exec(), 1);
-  assert.ok(h.lines.includes('::error::branch main: backup backup/main/2026-10-01 created, but force-sync failed: PAT lacks Workflows: Read and write'));
+  assert.ok(h.lines.includes('::error::branch main: backup backup/main/2026-10-01 created, but force-sync failed: Token cannot update workflow files — it needs Workflows: Read and write (fine-grained) or the workflow scope (classic)'));
 });
 
 test('a full-history rewrite (no common ancestor) is backed up before the fork follows it', async () => {
