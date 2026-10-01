@@ -179,6 +179,43 @@ test('a force refused for workflow permission keeps the backup and says so', asy
   assert.ok(gh.getRef('me/b', 'refs/heads/backup/main/2026-10-01'));
 });
 
+test('hard rule: a missing backup base commit fails without any PATCH', async () => {
+  const { gh, client, ctx, writes } = setup();
+  const fakeFrom = '9'.repeat(40); // never committed, so GET .../git/commits/<sha> 404s
+  const to = gh.commit();
+  const op = {
+    kind: 'branch', name: 'main', from: fakeFrom, to, outcome: 'backup-force',
+    comparison: { status: 'diverged', aheadBy: 1, behindBy: 1, mergeBase: null },
+  };
+  const { results } = await apply(client, ctx(new Map([['main', fakeFrom]])), [op], OPTIONS);
+  assert.equal(results[0].status, 'error');
+  assert.match(results[0].error, /^backup failed, force skipped: /);
+  assert.ok(!writes().some((w) => w.startsWith('PATCH')));
+});
+
+test('hard rule: a 403 creating the backup ref fails without any PATCH', async () => {
+  const { gh, client, ctx, writes } = setup();
+  const { old, op } = rewrite(gh);
+  gh.fail('POST', /\/git\/refs$/, { status: 403, body: { message: 'Resource not accessible by personal access token' } });
+  const { results } = await apply(client, ctx(new Map([['main', old]])), [op], OPTIONS);
+  assert.equal(results[0].status, 'error');
+  assert.match(results[0].error, /^backup failed, force skipped: /);
+  assert.ok(!writes().some((w) => w.startsWith('PATCH')));
+  assert.equal(gh.getRef('me/b', 'refs/heads/main'), old);
+});
+
+test('hard rule: all 20 backup-name suffixes taken fails without any PATCH, main unchanged', async () => {
+  const { gh, client, ctx, writes } = setup();
+  const { old, op } = rewrite(gh);
+  const known = new Map([['main', old], ['backup/main/2026-10-01', old]]);
+  for (let n = 2; n <= 20; n += 1) known.set(`backup/main/2026-10-01-${n}`, old);
+  const { results } = await apply(client, ctx(known), [op], OPTIONS);
+  assert.equal(results[0].status, 'error');
+  assert.match(results[0].error, /^no free backup branch name \(backup\/main\/2026-10-01 … -20\); force skipped$/);
+  assert.ok(!writes().some((w) => w.startsWith('PATCH')));
+  assert.equal(gh.getRef('me/b', 'refs/heads/main'), old);
+});
+
 test('a backup is not started without budget for all three writes', async () => {
   const { gh, client, ctx, writes } = setup({ maxWrites: 2 });
   const { old, op } = rewrite(gh);
