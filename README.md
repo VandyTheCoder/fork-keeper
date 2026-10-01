@@ -53,10 +53,10 @@ upstream is private, even if the same account owns both.
 - **Upstream public, or private and owned by the same account or organisation as the
   fork:** a fine-grained personal access token. Resource owner: the fork's owner.
   Repository access: *Only select repositories* → the fork, **and the upstream too if it's
-  private** (a public upstream needs no entry — it's already readable). Permissions on the
-  fork: **Contents: Read and write** and **Workflows: Read and write** (upstream workflow
-  files are backed up too); on a private upstream, the fine-grained picker's defaults are
-  enough since fork-keeper only reads it.
+  private** (a public upstream needs no entry — it's already readable). A fine-grained
+  token's permissions apply to every repository it selects, and listing branches needs
+  **Contents: Read** — so give **both** the fork and a private upstream **Contents: Read
+  and write** and **Workflows: Read and write** (upstream workflow files are backed up too).
 - **Upstream private and owned by someone else:** a fine-grained token can't select a
   repository outside its resource owner, so it can never reach this upstream. Use a classic
   token with the `repo` and `workflow` scopes instead. If the fork's organisation enforces
@@ -77,6 +77,11 @@ on:
   schedule:
     - cron: '0 17 * * *'   # 00:00 in UTC+7 — cron is always UTC
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Plan only — write nothing'
+        type: boolean
+        default: false
 permissions: {}
 concurrency: { group: fork-sync, cancel-in-progress: false }
 jobs:
@@ -93,6 +98,7 @@ jobs:
           token: ${{ secrets.FORK_SYNC_TOKEN }}
           repository: ${{ matrix.fork }}
           timezone: Asia/Phnom_Penh
+          dry-run: ${{ inputs.dry_run }}
 ```
 
 ### Option 2 — a control branch inside the fork
@@ -102,9 +108,10 @@ the fork's `main` would make it differ from upstream, so fork-keeper would back 
 reset `main` — deleting its own schedule. Keep the workflow on a branch of its own:
 
 1. Start from a fresh clone and create an orphan branch holding only the workflow and a
-   README pointing readers to `main`. Add the tracked files with explicit paths — the
-   orphan branch still has the fork's other files sitting untracked in the working tree,
-   and a bare `git add .` would pull them all in:
+   README pointing readers to `main`. `git switch --orphan` starts from an empty index and
+   clears the tracked files from the working tree, but anything untracked or ignored that
+   was lying around (e.g. a stray `.env`) is still sitting there — add the tracked files
+   with explicit paths so a bare `git add .` doesn't pull them into the commit:
    ```sh
    git clone https://github.com/you/project fork-keeper-setup && cd fork-keeper-setup
    git switch --orphan fork-keeper
@@ -166,7 +173,7 @@ shows what would happen without writing anything.
 
 | Input | Default | Meaning |
 |---|---|---|
-| `token` | *(required)* | Fine-grained PAT with Contents + Workflows write on the fork |
+| `token` | *(required)* | Write access to the fork, read access to its upstream. Fine-grained: Contents + Workflows: Read and write. Classic (needed when the upstream is private and owned by someone else): `repo` + `workflow` scopes |
 | `repository` | the current repo | The fork (`owner/name`). The upstream is read from GitHub. |
 | `branches` | `*` | `*` for every branch, or a newline-separated list of exact names |
 | `tags` | `true` | Also back up tags |
