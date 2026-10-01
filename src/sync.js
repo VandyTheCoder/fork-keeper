@@ -178,7 +178,7 @@ async function applyOne(client, ctx, op, options, taken) {
       return attempt(
         op,
         () => client.request('PATCH', `/repos/${fork}/git/refs/${refPath(`heads/${op.name}`)}`, { sha: op.to, force: false }),
-        (err) => (err.status === 422 && !isWorkflowPermissionError(err) ? 'fork changed during run; retried next run' : null),
+        (err) => (err.status === 422 && /fast.?forward/i.test(err.message) ? 'fork changed during run; retried next run' : null),
       );
     }
     case 'backup-force':

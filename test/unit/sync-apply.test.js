@@ -72,6 +72,18 @@ test('a rejected fast-forward is reported as a fork change, not forced', async (
   assert.equal(gh.getRef('me/b', 'refs/heads/main'), moved);
 });
 
+test('a fast-forward 422 unrelated to fast-forwarding reports the plain GitHub error', async () => {
+  const { gh, client, ctx } = setup();
+  const c1 = gh.commit();
+  const c2 = gh.commit([c1]);
+  gh.setRef('me/b', 'refs/heads/main', c1);
+  gh.fail('PATCH', /\/git\/refs\/heads\/main$/, { status: 422, body: { message: 'Object does not exist' } });
+  const { results } = await apply(client, ctx(), [{ kind: 'branch', name: 'main', from: c1, to: c2, outcome: 'fast-forward' }], OPTIONS);
+  assert.equal(results[0].status, 'error');
+  assert.equal(results[0].error, 'GitHub 422: Object does not exist');
+  assert.equal(gh.getRef('me/b', 'refs/heads/main'), c1);
+});
+
 test('fast-forward handles URL-special branch names', async () => {
   const { gh, client, ctx } = setup();
   const c1 = gh.commit();
