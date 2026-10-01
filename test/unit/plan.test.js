@@ -79,6 +79,24 @@ test('with a branch list, only listed branches are considered', () => {
   assert.equal(ops[2].error, 'not found upstream or in fork');
 });
 
+test('a listed branch missing upstream is marked listed for the report', () => {
+  const p = input({
+    branches: ['main', 'gone'],
+    upstreamBranches: map({ main: 'a1' }),
+    forkBranches: map({ main: 'a1', gone: 'g1' }),
+  });
+  const ops = plan(p);
+  assert.equal(ops[1].outcome, 'retained');
+  assert.equal(ops[1].listed, true);
+});
+
+test('a wildcard-retained branch is not marked listed', () => {
+  const p = input({ forkBranches: map({ old: 'o1' }) });
+  const [op] = plan(p);
+  assert.equal(op.outcome, 'retained');
+  assert.equal(op.listed, undefined);
+});
+
 test('tags are created, left alone when moved, and retained when deleted upstream', () => {
   const p = input({
     upstreamTags: map({ v1: 't1', v2: 't2', v3: 't3-moved' }),

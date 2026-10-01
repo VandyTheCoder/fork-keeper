@@ -62,6 +62,13 @@ test('annotations warn on rewrites, moved tags and partial runs; error on failur
   ]);
 });
 
+test('annotations warn when a listed branch no longer exists upstream', () => {
+  const listed = [{ kind: 'branch', name: 'gone', outcome: 'retained', status: 'done', from: sha('e'), listed: true }];
+  assert.deepEqual(annotations(listed, { partial: false }), [
+    '::warning::Listed branch gone no longer exists upstream; the fork keeps it.',
+  ]);
+});
+
 test('exitCode is 1 only when a ref errored', () => {
   assert.equal(exitCode(results), 0);
   assert.equal(exitCode([...results, { kind: 'branch', name: 'x', outcome: 'error', status: 'error', error: 'e' }]), 1);

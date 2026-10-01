@@ -27,12 +27,12 @@ export function branchesToCompare(input) {
     .map((name) => ({ name, from: forkBranches.get(name), to: upstreamBranches.get(name) }));
 }
 
-function planBranch(name, { upstreamBranches, forkBranches, comparisons }) {
+function planBranch(name, { upstreamBranches, forkBranches, comparisons, branches }) {
   const to = upstreamBranches.get(name);
   const from = forkBranches.get(name);
   const op = { kind: 'branch', name, from, to };
   if (to === undefined && from === undefined) return { ...op, outcome: 'error', error: 'not found upstream or in fork' };
-  if (to === undefined) return { ...op, outcome: 'retained' };
+  if (to === undefined) return { ...op, outcome: 'retained', ...(branches !== '*' ? { listed: true } : {}) };
   if (from === undefined) return { ...op, outcome: 'create' };
   if (from === to) return { ...op, outcome: 'up-to-date' };
 

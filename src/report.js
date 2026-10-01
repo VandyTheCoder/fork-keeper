@@ -56,6 +56,7 @@ export function annotations(results, { partial }) {
       warn(`Upstream rewrote ${r.name}; previous state saved as ${r.backupName}, then force-synced.`);
     }
     if (r.outcome === 'tag-moved') warn(`Upstream moved tag ${r.name}; the fork keeps the original.`);
+    if (r.listed && r.outcome === 'retained') warn(`Listed branch ${r.name} no longer exists upstream; the fork keeps it.`);
     if (r.status === 'error') lines.push(`::error::${escapeData(`${refLabel(r)}: ${r.error}`)}`);
   }
   if (partial) warn('Run stopped early (GitHub rate limit or write budget); the next run continues.');
