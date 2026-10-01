@@ -14,7 +14,8 @@ const WRITING_OUTCOMES = new Set(['create', 'fast-forward', 'backup-force']);
 const short = (sha) => (sha ? sha.slice(0, 7) : '—');
 const refLabel = (r) => `${r.kind === 'tag' ? 'tag' : 'branch'} ${r.name}`;
 const refKey = (r) => `${r.kind === 'tag' ? 'tags' : 'heads'}/${r.name}`;
-const urlPath = (name) => name.split('/').map(encodeURIComponent).join('/');
+const encodeSegment = (segment) => encodeURIComponent(segment).replace(/\(/g, '%28').replace(/\)/g, '%29');
+const urlPath = (name) => name.split('/').map(encodeSegment).join('/');
 const isQuiet = (r) => r.outcome === 'up-to-date' && r.status === 'done';
 
 export function escapeMd(text) {

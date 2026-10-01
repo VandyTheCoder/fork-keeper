@@ -100,6 +100,14 @@ test('stepSummary says no refs were processed when a partial run stopped before 
   assert.doesNotMatch(md, /Everything is already up to date\./);
 });
 
+test('stepSummary percent-encodes parentheses in a backup branch URL', () => {
+  const md = stepSummary([{
+    kind: 'branch', name: 'main', outcome: 'backup-force', status: 'done',
+    from: sha('a'), to: sha('b'), backupName: 'backup/a(b)/2026-10-01',
+  }], ctx);
+  assert.match(md, /\(https:\/\/github\.com\/me\/b\/tree\/backup\/a%28b%29\/2026-10-01\)/);
+});
+
 test('stepSummary shows a backup created before the run stopped', () => {
   const md = stepSummary([{ kind: 'branch', name: 'main', outcome: 'backup-force', status: 'skipped', from: sha('a'), to: sha('b'), backupName: 'backup/main/2026-10-01', error: 'x' }], ctx);
   assert.match(md, /not processed — run stopped early · backup \[backup\/main\/2026-10-01\]\(https:\/\/github\.com\/me\/b\/tree\/backup\/main\/2026-10-01\) already created/);
