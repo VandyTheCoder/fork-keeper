@@ -67,6 +67,39 @@ test('a CREATE that collides with a different ref is still an error', async () =
   assert.match(results[0].error, /Reference already exists/);
 });
 
+test('a GitHubError from the confirming GET falls through to the original 422, and later ops still run', async () => {
+  const { gh, client, ctx } = setup();
+  const c1 = gh.commit();
+  const c2 = gh.commit();
+  const c3 = gh.commit();
+  gh.setRef('me/b', 'refs/heads/dev', c1); // makes the CREATE 422 "already exists"
+  gh.fail('GET', /\/git\/ref\/heads\/dev$/, { status: 404, body: { message: 'Not Found' } }); // ref vanished mid-run
+  const ops = [
+    { kind: 'branch', name: 'dev', to: c2, outcome: 'create' },
+    { kind: 'branch', name: 'other', to: c3, outcome: 'create' },
+  ];
+  const { results, partial } = await apply(client, ctx(), ops, OPTIONS);
+  assert.equal(results[0].status, 'error');
+  assert.match(results[0].error, /Reference already exists/);
+  assert.equal(results[1].status, 'done');
+  assert.equal(partial, false);
+});
+
+test('a far-future rate limit on the confirming GET is a PartialStop, not an error result', async () => {
+  const { gh, client, ctx } = setup();
+  const c1 = gh.commit();
+  const c2 = gh.commit();
+  gh.setRef('me/b', 'refs/heads/dev', c1); // makes the CREATE 422 "already exists"
+  const reset = String(Math.floor(Date.parse('2026-09-30T17:04:00Z') / 1000) + 3600);
+  gh.fail('GET', /\/git\/ref\/heads\/dev$/, {
+    status: 403, body: { message: 'API rate limit exceeded' },
+    headers: { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': reset },
+  });
+  const { results, partial } = await apply(client, ctx(), [{ kind: 'branch', name: 'dev', to: c2, outcome: 'create' }], OPTIONS);
+  assert.equal(partial, true);
+  assert.equal(results[0].status, 'skipped');
+});
+
 test('fast-forward updates the ref with force: false', async () => {
   const { gh, client, ctx } = setup();
   const c1 = gh.commit();

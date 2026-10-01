@@ -178,8 +178,13 @@ async function createRef(client, fork, op) {
   } catch (err) {
     if (!(err instanceof GitHubError)) throw err;
     if (err.status === 422 && /already exists/i.test(err.message)) {
-      const existing = await client.request('GET', `/repos/${fork}/git/ref/${refPath(`${kind}/${op.name}`)}`);
-      if (existing.object.sha === op.to) return { ...op, status: 'done' };
+      try {
+        const existing = await client.request('GET', `/repos/${fork}/git/ref/${refPath(`${kind}/${op.name}`)}`);
+        if (existing.object.sha === op.to) return { ...op, status: 'done' };
+      } catch (getErr) {
+        if (!(getErr instanceof GitHubError)) throw getErr; // PartialStop and anything else still propagate
+        // a GitHubError confirming the clash (e.g. the ref vanished) falls through to the original 422 below
+      }
     }
     return { ...op, status: 'error', error: describeWriteError(err) };
   }
