@@ -48,7 +48,10 @@ export function createClient({
   function rateLimitWait(res, message) {
     if (res.status !== 403 && res.status !== 429) return null;
     const retryAfter = res.headers.get('retry-after');
-    if (retryAfter !== null) return Number(retryAfter) * 1000;
+    if (retryAfter !== null) {
+      const waitMs = Number(retryAfter) * 1000;
+      return waitMs <= maxPrimaryWaitMs ? waitMs : Infinity;
+    }
     if (res.headers.get('x-ratelimit-remaining') === '0') {
       const waitMs = Math.max(0, Number(res.headers.get('x-ratelimit-reset')) * 1000 - now()) + 1000;
       return waitMs <= maxPrimaryWaitMs ? waitMs : Infinity;

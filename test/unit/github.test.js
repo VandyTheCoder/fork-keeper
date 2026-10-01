@@ -73,6 +73,15 @@ test('stops as PartialStop when the primary reset is far away', async () => {
   assert.deepEqual(clock.sleeps, []);
 });
 
+test('stops as PartialStop when retry-after exceeds the primary wait cap, without sleeping', async () => {
+  const { client, calls, clock } = clientFor([
+    { status: 403, body: { message: 'API rate limit exceeded' }, headers: { 'retry-after': '301' } },
+  ], { maxPrimaryWaitMs: 300_000 });
+  await assert.rejects(client.request('GET', '/x'), (err) => err instanceof PartialStop && err.reason === 'rate-limit');
+  assert.deepEqual(clock.sleeps, []);
+  assert.equal(calls.length, 1);
+});
+
 test('honours retry-after on a secondary rate limit', async () => {
   const { client, clock } = clientFor([
     { status: 403, body: { message: 'You have exceeded a secondary rate limit' }, headers: { 'retry-after': '7' } },
