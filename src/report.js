@@ -118,7 +118,7 @@ export function stepSummary(results, { fork, upstream, dryRun, partial, serverUr
   lines.push('');
   const notable = results.filter((r) => !isQuiet(r));
   if (notable.length === 0) {
-    lines.push('Everything is already up to date.');
+    lines.push(partial && results.length === 0 ? 'No refs were processed.' : 'Everything is already up to date.');
   } else {
     lines.push('| Ref | Outcome | Detail |', '|---|---|---|');
     for (const r of notable) {
