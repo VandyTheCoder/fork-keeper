@@ -99,7 +99,7 @@ function detail(r, fork, serverUrl) {
       : `[${escapeMd(r.backupName)}](${repoUrl}/tree/${urlPath(r.backupName)})`;
   }
   if (r.status === 'error') return `⚠ ${escapeMd(r.error)}${backup ? ` · backup ${backup}` : ''}`;
-  if (r.status === 'skipped') return 'not processed — run stopped early';
+  if (r.status === 'skipped') return `not processed — run stopped early${backup ? ` · backup ${backup} already created` : ''}`;
   switch (r.outcome) {
     case 'create': return `at ${short(r.to)}`;
     case 'fast-forward': return `${short(r.from)} → ${short(r.to)} · [diff](${repoUrl}/compare/${r.from}...${r.to})`;

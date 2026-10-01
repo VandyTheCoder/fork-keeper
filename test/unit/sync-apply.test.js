@@ -158,6 +158,34 @@ test('a backup is not started without budget for all three writes', async () => 
   assert.deepEqual(writes(), []);
 });
 
+test('a name clash never leaves a backup ref without budget for the force', async () => {
+  const { gh, client, ctx } = setup({ maxWrites: 3 });
+  const { old, op } = rewrite(gh);
+  gh.setRef('me/b', 'refs/heads/backup/main/2026-10-01', old); // taken since resolve: costs a 422 write
+  const { results, partial } = await apply(client, ctx(new Map([['main', old]])), [op], OPTIONS);
+  assert.equal(partial, true);
+  assert.equal(results[0].status, 'skipped');
+  assert.equal(gh.getRef('me/b', 'refs/heads/backup/main/2026-10-01-2'), undefined);
+  assert.equal(gh.getRef('me/b', 'refs/heads/main'), old);
+});
+
+test('a rate limit on the force reports the backup that was already created', async () => {
+  const { gh, client, ctx } = setup();
+  const { old, op } = rewrite(gh);
+  const reset = String(Math.floor(Date.parse('2026-09-30T17:04:00Z') / 1000) + 3600);
+  gh.fail('PATCH', /\/git\/refs\/heads\/main$/, {
+    status: 403, body: { message: 'API rate limit exceeded' },
+    headers: { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': reset },
+  });
+  const { results, partial } = await apply(client, ctx(new Map([['main', old]])), [op], OPTIONS);
+  assert.equal(partial, true);
+  assert.equal(results[0].status, 'skipped');
+  assert.equal(results[0].backupName, 'backup/main/2026-10-01');
+  assert.match(results[0].error, /^backup backup\/main\/2026-10-01 created, but force-sync not sent: GitHub rate limit reached$/);
+  assert.ok(gh.getRef('me/b', 'refs/heads/backup/main/2026-10-01'));
+  assert.equal(gh.getRef('me/b', 'refs/heads/main'), old);
+});
+
 test('when the budget runs out, remaining refs are skipped and the run is partial', async () => {
   const { gh, client, ctx } = setup({ maxWrites: 1 });
   const c = gh.commit();

@@ -93,3 +93,8 @@ test('stepSummary escapes ref names and marks dry runs', () => {
 test('stepSummary says so when everything is up to date', () => {
   assert.match(stepSummary([results[4]], ctx), /Everything is already up to date\./);
 });
+
+test('stepSummary shows a backup created before the run stopped', () => {
+  const md = stepSummary([{ kind: 'branch', name: 'main', outcome: 'backup-force', status: 'skipped', from: sha('a'), to: sha('b'), backupName: 'backup/main/2026-10-01', error: 'x' }], ctx);
+  assert.match(md, /not processed — run stopped early · backup \[backup\/main\/2026-10-01\]\(https:\/\/github\.com\/me\/b\/tree\/backup\/main\/2026-10-01\) already created/);
+});

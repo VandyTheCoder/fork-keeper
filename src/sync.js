@@ -79,6 +79,7 @@ export async function compareBranches(client, fork, pairs) {
 }
 
 const WRITES_PER_BACKUP = 3; // backup commit, backup ref, forced update
+const WRITES_FOR_REF_AND_FORCE = 2; // backup ref + forced update
 
 function describeWriteError(err) {
   if (isWorkflowPermissionError(err)) return 'PAT lacks Workflows: Read and write';
@@ -101,6 +102,7 @@ async function createBackupRef(client, fork, base, sha, taken) {
   for (;;) {
     const name = pickFreeBackupName(base, taken);
     if (!name) return null;
+    if (client.writesRemaining() < WRITES_FOR_REF_AND_FORCE) throw new PartialStop('write-budget');
     try {
       await client.request('POST', `/repos/${fork}/git/refs`, { ref: `refs/heads/${name}`, sha });
       taken.add(name);
@@ -143,6 +145,10 @@ async function backupThenForce(client, ctx, op, options, taken) {
   try {
     await client.request('PATCH', `/repos/${fork}/git/refs/${refPath(`heads/${op.name}`)}`, { sha: op.to, force: true });
   } catch (err) {
+    if (err instanceof PartialStop) {
+      err.result = { ...op, status: 'skipped', backupName, error: `backup ${backupName} created, but force-sync not sent: ${err.message}` };
+      throw err;
+    }
     if (!(err instanceof GitHubError)) throw err;
     return { ...op, status: 'error', backupName, error: `backup ${backupName} created, but force-sync failed: ${describeWriteError(err)}` };
   }
@@ -192,7 +198,7 @@ export async function apply(client, ctx, ops, options) {
     } catch (err) {
       if (!(err instanceof PartialStop)) throw err;
       stop = err;
-      results.push({ ...op, status: 'skipped', error: err.message });
+      results.push(err.result ?? { ...op, status: 'skipped', error: err.message });
     }
   }
   return { results, partial: stop !== null };
